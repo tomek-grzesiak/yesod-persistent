@@ -44,10 +44,13 @@ newtype PersistPg = PersistPg ConnectionPool
 -- occurrence to use an Id type in routes.
 mkYesod "PersistPg" [parseRoutes|
 /person/#PersonId PersonR GET
+/person/ AllPersonR GET POST
 |]
 
 instance ToJSON Person
+
 instance FromJSON Person
+
 
 -- Nothing special here
 instance Yesod PersistPg
@@ -68,25 +71,37 @@ instance YesodPersist PersistPg where
 getPersonR :: PersonId -> Handler Value
 getPersonR personId = do
     person <- runDB $ get404 personId
-    all <- runDB $ selectList [PersonAge >. 25, PersonAge <=. 30] []
     return $ toJSON person
+
+postAllPersonR :: Handler ()
+postAllPersonR = do
+    person <- requireJsonBody :: Handler Person
+    runDB $ insert person
+    return ()
+
+getAllPersonR :: Handler Value
+getAllPersonR = do
+    all <- runDB $ selectList [PersonAge >. 25, PersonAge <=. 100] []
+    let decompose = fmap extractPerson all
+    return $ toJSONList decompose
 
 openConnectionCount :: Int
 openConnectionCount = 10
+
+extractPerson :: Entity Person -> Person
+extractPerson (Entity y x) = x
 
 main :: IO ()
 main = runStderrLoggingT $ withPostgresqlPool "postgresql://postgres:test@localhost:5432/postgres" openConnectionCount $ \pool -> do
       logInfoN ("logger test":: Text)
       liftIO $ do
-        warp 3000 $ PersistPg pool
         runResourceT $ flip runSqlPool pool $ do
+          --  ins
             migration
-            ins
+        warp 3000 $ PersistPg pool
 
 migration :: MonadIO m => ReaderT SqlBackend m ()
 migration = runMigration migrateAll
 
-ins :: MonadIO m => ReaderT SqlBackend m ()
-ins = do
-     insert $ Person "Michael" "Snoyman" 26
-     return ()
+ins :: MonadIO m => ReaderT SqlBackend m (Key Person)
+ins = insert $ Person "Michael" "Snoyman" 26

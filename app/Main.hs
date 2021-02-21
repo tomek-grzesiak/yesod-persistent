@@ -1,5 +1,5 @@
-{-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -9,30 +9,34 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+
 
 module Main where
+
+import Protolude
 
 import Database.Persist
 import Database.Persist.Postgresql
 import Database.Persist.TH
-import Database.Persist.Sql
 import Yesod
-import Control.Monad.Trans.Resource (runResourceT)
 import Control.Monad.Logger (runStderrLoggingT, logInfoN)
-import Data.Pool (Pool)
-import Control.Monad.Reader
-import Data.Text
-import Data.Aeson
-import GHC.Generics
+
+import Data.Aeson.TH
+
 
 -- Define our entities as usual
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
 Person
-    firstName String
-    lastName String
+    firstName Text
+    lastName Text
     age Int
     PersonName firstName lastName
     deriving Show Generic
+    
 |]
 
 -- We keep our connection pool in the foundation. At program initialization, we
@@ -44,49 +48,66 @@ newtype PersistPg = PersistPg ConnectionPool
 -- occurrence to use an Id type in routes.
 mkYesod "PersistPg" [parseRoutes|
 /person/#PersonId PersonR GET
+/person/ AllPersonR GET POST
 |]
 
-instance ToJSON Person
-instance FromJSON Person
 
 -- Nothing special here
 instance Yesod PersistPg
 
--- Now we need to define a YesodPersist instance, which will keep track of
--- which backend we're using and how to run an action.
-instance YesodPersist PersistPg where
-    type YesodPersistBackend PersistPg = SqlBackend
+class (HasConnectionPool m) => RunRepo m a where
+    runRepo :: ReaderT SqlBackend m a -> m a
 
-    runDB action = do
-        PersistPg pool <- getYesod
-        runSqlPool action pool
+class HasConnectionPool m where
+    getPool :: m ConnectionPool
+
+instance HasConnectionPool (HandlerFor PersistPg) where
+    getPool = do
+       PersistPg pool <- getYesod
+       return pool
+
+instance RunRepo (HandlerFor PersistPg) a where 
+    runRepo = \sql -> getPool >>= runSqlPool sql
 
 
--- We'll just return the show value of a person, or a 404 if the Person doesn't
--- exist.
-
-getPersonR :: PersonId -> Handler Value
+getPersonR ::  PersonId -> Handler Value
 getPersonR personId = do
-    person <- runDB $ get404 personId
-    all <- runDB $ selectList [PersonAge >. 25, PersonAge <=. 30] []
+    person <- runRepo $ get404 personId
     return $ toJSON person
+
+postAllPersonR :: Handler ()
+postAllPersonR = do
+    person <- requireCheckJsonBody  :: Handler Person
+    runRepo $ insert person
+    return ()
+    
+getAllPersonR :: Handler Value
+getAllPersonR = do
+    all <- runRepo $ selectList [PersonAge >. 25, PersonAge <=. 100] []
+    let decompose = fmap extractPerson all
+    return $ toJSONList decompose
 
 openConnectionCount :: Int
 openConnectionCount = 10
 
+extractPerson :: Entity Person -> Person
+extractPerson (Entity y x) = x
+
 main :: IO ()
-main = runStderrLoggingT $ withPostgresqlPool "postgresql://postgres:test@localhost:5432/postgres" openConnectionCount $ \pool -> do
+main = runStderrLoggingT $ withPostgresqlPool "postgresql://postgres:postgres@localhost:5432/postgres" openConnectionCount $ \pool -> do
       logInfoN ("logger test":: Text)
       liftIO $ do
+        let mig = migration >> ins
+        runSqlPersistMPool mig pool
         warp 3000 $ PersistPg pool
-        runResourceT $ flip runSqlPool pool $ do
-            migration
-            ins
 
 migration :: MonadIO m => ReaderT SqlBackend m ()
 migration = runMigration migrateAll
 
-ins :: MonadIO m => ReaderT SqlBackend m ()
-ins = do
-     insert $ Person "Michael" "Snoyman" 26
-     return ()
+migrationShow :: MonadIO m => ReaderT SqlBackend m [Text]
+migrationShow = showMigration migrateAll
+
+ins :: MonadIO m => ReaderT SqlBackend m (Key Person)
+ins = insert $ Person "Tomasz" "Grzesiak" 40
+
+$(deriveJSON defaultOptions 'Person)

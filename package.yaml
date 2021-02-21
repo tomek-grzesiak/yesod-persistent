@@ -28,11 +28,11 @@ dependencies:
 - mtl
 - monad-logger
 - yesod
-- resourcet
 - resource-pool
 - text
 - aeson
 - aeson-pretty
+- protolude
 
 library:
   source-dirs: src

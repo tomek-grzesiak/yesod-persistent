@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 68cd17a91260c4457c26a6cac77aa9d0f718b646c0dbe4265c7470b37b8dd4a3
+-- hash: 08369144911771c6f9a798f9d8356d5806ff44d156b85d8827bce67a380a6dc4
 
 name:           yesod-poc
 version:        0.1.0.0
@@ -42,8 +42,8 @@ library
     , persistent
     , persistent-postgresql
     , persistent-template
+    , protolude
     , resource-pool
-    , resourcet
     , text
     , yesod
   default-language: Haskell2010
@@ -65,8 +65,8 @@ executable yesod-poc-exe
     , persistent
     , persistent-postgresql
     , persistent-template
+    , protolude
     , resource-pool
-    , resourcet
     , text
     , yesod
     , yesod-poc
@@ -90,8 +90,8 @@ test-suite yesod-poc-test
     , persistent
     , persistent-postgresql
     , persistent-template
+    , protolude
     , resource-pool
-    , resourcet
     , text
     , yesod
     , yesod-poc

@@ -1,0 +1,13 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "yesod-poc:lib"
+
+    - path: "./app/Main.hs"
+      component: "yesod-poc:exe:yesod-poc-exe"
+
+    - path: "./app/Paths_yesod_poc.hs"
+      component: "yesod-poc:exe:yesod-poc-exe"
+
+    - path: "./test"
+      component: "yesod-poc:test:yesod-poc-test"
