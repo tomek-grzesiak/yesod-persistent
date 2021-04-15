@@ -13,11 +13,11 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-
+{-# LANGUAGE DataKinds #-} 
 
 module Main where
 
-import Protolude
+import Protolude hiding (Handler)
 
 import Database.Persist
 import Database.Persist.Postgresql
