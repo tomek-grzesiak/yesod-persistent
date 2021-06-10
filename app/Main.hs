@@ -84,14 +84,10 @@ postAllPersonR = do
 getAllPersonR :: Handler Value
 getAllPersonR = do
     all <- runRepo $ selectList [PersonAge >. 25, PersonAge <=. 100] []
-    let decompose = fmap extractPerson all
-    return $ toJSONList decompose
+    return $ toJSONList . fmap entityVal $ all
 
 openConnectionCount :: Int
 openConnectionCount = 10
-
-extractPerson :: Entity Person -> Person
-extractPerson (Entity y x) = x
 
 main :: IO ()
 main = runStderrLoggingT $ withPostgresqlPool "postgresql://postgres:postgres@localhost:5432/postgres" openConnectionCount $ \pool -> do
